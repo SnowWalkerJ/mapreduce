@@ -54,14 +54,14 @@ class MRServer(Process):
     def filter(self, src, dest, func):
         self.dataset[dest] = list(filter(func, self.dataset[src]))
 
-    def map(self, src, dest, func):
+    def flatmap(self, src, dest, func):
         src = self.dataset[src]
-        if isgeneratorfunction(func):
-            self.dataset[dest] = []
-            for item in src:
-                self.dataset[dest].extend(list(func(item)))
-        else:
-            self.dataset[dest] = list(map(func, src))
+        self.dataset[dest] = []
+        for item in src:
+            self.dataset[dest].extend(list(func(item)))
+
+    def map(self, src, dest, func):
+        self.dataset[dest] = list(map(func, self.dataset[src]))
 
     def partition(self, name):
         n = len(self.queues)
@@ -79,9 +79,14 @@ class MRServer(Process):
             newdata.append((key, reduce(func, group)))
         self.dataset[dest] = newdata
 
-
     def count(self, name):
         self.pipe.send(len(self.dataset[name]))
+
+    def merge(self, src, dest):
+        dataset = []
+        for s in src:
+            dataset.extend(self.dataset[s])
+        self.dataset[dest] = dataset
 
 
 def hash_string(s):

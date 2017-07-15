@@ -9,7 +9,33 @@ from .server import MRServer
 Channel = namedtuple('Channel', ['queue', 'pipe', 'state'])
 
 
+class StandardOperation:
+    def __init__(self, action):
+        self.action = action
+        self.func = None
+
+    def __get__(self, obj, type=None):
+        if self.func is None:
+            def function(func, dataset, inplace=True):
+                if inplace:
+                    name = dataset.name
+                else:
+                    postfix = hex(abs(id(func)))
+                    name = "/".join([dataset.name, self.action, postfix])
+                    obj.names.add(name)
+                with obj.acquire():
+                    obj._send({'action': self.action, 'src': dataset.name, 'dest': name, 'func': func})
+                return Distributed(obj, name)
+            function.__name__ = self.action
+            self.func = function
+        return self.func
+
+
 class MRClient:
+    map = StandardOperation("map")
+    filter = StandardOperation("filter")
+    reduce = StandardOperation("reduce")
+    flatmap = StandardOperation("flatmap")
     def __init__(self, num_cores):
         self.num_cores = num_cores
         self.names = set()
@@ -62,38 +88,38 @@ class MRClient:
                 self.channels[i % self.num_cores].queue.put(item)
         return Distributed(self, name)
 
-    def map(self, func, dataset, inplace=True):
-        if inplace:
-            name = dataset.name
-        else:
-            postfix = hex(abs(id(func)))
-            name = "/".join([dataset.name, "map", postfix])
-            self.names.add(name)
-        with self.acquire():
-            self._send({'action': 'map', 'src': dataset.name, 'dest': name, 'func': func})
-        return Distributed(self, name)
+    # def map(self, func, dataset, inplace=True):
+    #     if inplace:
+    #         name = dataset.name
+    #     else:
+    #         postfix = hex(abs(id(func)))
+    #         name = "/".join([dataset.name, "map", postfix])
+    #         self.names.add(name)
+    #     with self.acquire():
+    #         self._send({'action': 'map', 'src': dataset.name, 'dest': name, 'func': func})
+    #     return Distributed(self, name)
 
-    def reduce(self, func, dataset, inplace=True):
-        if inplace:
-            name = dataset.name
-        else:
-            postfix = hex(abs(id(func)))
-            name = "/".join([dataset.name, "reduce", postfix])
-            self.names.add(name)
-        with self.acquire():
-            self._send({'action': 'reduce', 'func': func, 'src': dataset.name, 'dest': name})
-        return Distributed(self, name)
+    # def reduce(self, func, dataset, inplace=True):
+    #     if inplace:
+    #         name = dataset.name
+    #     else:
+    #         postfix = hex(abs(id(func)))
+    #         name = "/".join([dataset.name, "reduce", postfix])
+    #         self.names.add(name)
+    #     with self.acquire():
+    #         self._send({'action': 'reduce', 'func': func, 'src': dataset.name, 'dest': name})
+    #     return Distributed(self, name)
 
-    def filter(self, func, dataset, inplace=True):
-        if inplace:
-            name = dataset.name
-        else:
-            postfix = hex(abs(id(func)))
-            name = "/".join([dataset.name, "filter", postfix])
-            self.names.add(name)
-        with self.acquire():
-            self._send({'action': 'filter', 'src': dataset.name, 'dest': name, 'func': func})
-        return Distributed(self, name)
+    # def filter(self, func, dataset, inplace=True):
+    #     if inplace:
+    #         name = dataset.name
+    #     else:
+    #         postfix = hex(abs(id(func)))
+    #         name = "/".join([dataset.name, "filter", postfix])
+    #         self.names.add(name)
+    #     with self.acquire():
+    #         self._send({'action': 'filter', 'src': dataset.name, 'dest': name, 'func': func})
+    #     return Distributed(self, name)
 
     def partition(self, dataset):
         with self.acquire(queue=False):
@@ -101,6 +127,13 @@ class MRClient:
         with self.acquire(queue=False):
             self._send({'action': "add_dataset", 'name': dataset.name})
         return dataset
+
+    def merge(self, data):
+        new_name = "/".join(["merge"] + [d.name for d in data])
+        self._send({'action': 'merge',
+                    'src': [d.name for d in data],
+                    'dest': new_name})
+        return Distributed(self, new_name)
 
     def count(self, dataset):
         n = 0
@@ -151,6 +184,9 @@ class Distributed:
 
     def map(self, func, inplace=True):
         return self.client.map(func, self)
+
+    def flatmap(self, func, inplace=True):
+        return self.client.flatmap(func, self)
 
     def filter(self, func, inplace=True):
         return self.client.filter(func, self)

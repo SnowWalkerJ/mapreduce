@@ -1,4 +1,4 @@
-from multiprocessing import Process, Queue
+from multiprocess import Process, Queue
 from time import sleep
 from queue import Empty
 from inspect import isgeneratorfunction
@@ -55,12 +55,13 @@ class MRServer(Process):
         self.dataset[dest] = list(filter(func, self.dataset[src]))
 
     def map(self, src, dest, func):
+        src = self.dataset[src]
         if isgeneratorfunction(func):
             self.dataset[dest] = []
-            for item in self.dataset[src]:
+            for item in src:
                 self.dataset[dest].extend(list(func(item)))
         else:
-            self.dataset[dest] = list(map(func, self.dataset[src]))
+            self.dataset[dest] = list(map(func, src))
 
     def partition(self, name):
         n = len(self.queues)

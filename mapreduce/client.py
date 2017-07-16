@@ -13,10 +13,10 @@ Channel = namedtuple('Channel', ['queue', 'pipe', 'state'])
 class StandardOperation:
     def __init__(self, action):
         self.action = action
-        self.func = None
+        self.funcs = {}
 
     def __get__(self, obj, type=None):
-        if self.func is None:
+        if id(obj) not in self.funcs:
             def function(func, dataset, inplace=True):
                 if inplace:
                     name = dataset.name
@@ -28,8 +28,8 @@ class StandardOperation:
                     obj._send({'action': self.action, 'src': dataset.name, 'dest': name, 'func': func})
                 return Distributed(obj, name)
             function.__name__ = self.action
-            self.func = function
-        return self.func
+            self.funcs[id(obj)] = function
+        return self.funcs[id(obj)]
 
 
 class MRClient:

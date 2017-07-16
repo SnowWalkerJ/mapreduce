@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from queue import Empty
 from multiprocess import Queue, Process, Pipe, Value
 from .server import MRServer
+from .common.settings import CONFIG
 
 
 Channel = namedtuple('Channel', ['queue', 'pipe', 'state'])
@@ -82,44 +83,19 @@ class MRClient:
         self.names.add(name)
         if isinstance(data, dict):
             data = data.items()
+        buffer = []
+        i = 0
         with self.acquire():
             self._send({'action': "add_dataset", 'name': name})
-            for i, item in enumerate(data):
-                self.channels[i % self.num_cores].queue.put(item)
+            for item in data:
+                buffer.append(item)
+                if len(buffer) >= CONFIG.BUFFER_SIZE:
+                    self.channels[i % self.num_cores].queue.put(buffer)
+                    buffer = []
+                    i += 1
+            if buffer:
+                self.channels[i % self.num_cores].queue.put(buffer)
         return Distributed(self, name)
-
-    # def map(self, func, dataset, inplace=True):
-    #     if inplace:
-    #         name = dataset.name
-    #     else:
-    #         postfix = hex(abs(id(func)))
-    #         name = "/".join([dataset.name, "map", postfix])
-    #         self.names.add(name)
-    #     with self.acquire():
-    #         self._send({'action': 'map', 'src': dataset.name, 'dest': name, 'func': func})
-    #     return Distributed(self, name)
-
-    # def reduce(self, func, dataset, inplace=True):
-    #     if inplace:
-    #         name = dataset.name
-    #     else:
-    #         postfix = hex(abs(id(func)))
-    #         name = "/".join([dataset.name, "reduce", postfix])
-    #         self.names.add(name)
-    #     with self.acquire():
-    #         self._send({'action': 'reduce', 'func': func, 'src': dataset.name, 'dest': name})
-    #     return Distributed(self, name)
-
-    # def filter(self, func, dataset, inplace=True):
-    #     if inplace:
-    #         name = dataset.name
-    #     else:
-    #         postfix = hex(abs(id(func)))
-    #         name = "/".join([dataset.name, "filter", postfix])
-    #         self.names.add(name)
-    #     with self.acquire():
-    #         self._send({'action': 'filter', 'src': dataset.name, 'dest': name, 'func': func})
-    #     return Distributed(self, name)
 
     def partition(self, dataset):
         with self.acquire(queue=False):
@@ -163,8 +139,8 @@ class MRClient:
             retry = 0
             while 1:
                 try:
-                    item = self.global_queue.get(True, timeout=0.1)
-                    data.append(item)
+                    item = self.global_queue.get(True, timeout=0.01)
+                    data.extend(item)
                     retry = 0
                 except Empty:
                     retry += 1

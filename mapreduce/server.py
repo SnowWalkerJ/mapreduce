@@ -3,6 +3,7 @@ from time import sleep
 from queue import Empty
 from inspect import isgeneratorfunction
 from functools import reduce
+from .common.settings import CONFIG
 
 
 class MRServer(Process):
@@ -36,8 +37,8 @@ class MRServer(Process):
         retry = 0
         while 1:
             try:
-                item = self.queue.get(True, timeout=0.1)
-                dataset.append(item)
+                item = self.queue.get(True, timeout=0.01)
+                dataset.extend(item)
                 retry = 0
             except Empty:
                 retry += 1
@@ -45,8 +46,10 @@ class MRServer(Process):
                 break
 
     def collect(self, name):
-        for item in self.dataset[name]:
-            self.global_queue.put(item)
+        n = len(self.dataset[name])
+        for i in range(0, n, CONFIG.BUFFER_SIZE):
+            buffer = self.dataset[name][i:i+CONFIG.BUFFER_SIZE]
+            self.global_queue.put(buffer)
 
     def remove_dataset(self, name):
         del self.dataset[name]
@@ -66,9 +69,16 @@ class MRServer(Process):
     def partition(self, name):
         n = len(self.queues)
         dataset = self.dataset.pop(name)
+        buffers = [[] for _ in range(n)]
         for item in dataset:
             key = chash(item[0]) % n
-            self.queues[key].put(item)
+            buffers[key].append(item)
+            if len(buffers[key]) >= CONFIG.BUFFER_SIZE:
+                self.queues[key].put(buffers[key])
+                buffers[key] = []
+        for i in range(n):
+            if buffers[i]:
+                self.queues[i].put(buffers[i])
 
     def reduce(self, src, dest, func):
         dataset = self.dataset[src]

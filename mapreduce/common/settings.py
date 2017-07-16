@@ -184,6 +184,7 @@ def create_default_config():
     with open(CONFIG_PATH, "w") as config_file:
         default_config = [
             "cores = 3",
+            "buffer_size = 32",
             "",
         ]
         config_file.write("\n".join(default_config))

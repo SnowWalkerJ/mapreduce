@@ -4,6 +4,7 @@ from queue import Empty
 from inspect import isgeneratorfunction
 from functools import reduce
 from .common.settings import CONFIG
+from .common.itertools import bufferize
 
 
 class MRServer(Process):
@@ -46,10 +47,8 @@ class MRServer(Process):
                 break
 
     def collect(self, name):
-        n = len(self.dataset[name])
-        for i in range(0, n, CONFIG.BUFFER_SIZE):
-            buffer = self.dataset[name][i:i+CONFIG.BUFFER_SIZE]
-            self.global_queue.put(buffer)
+        for batch in bufferize(self.dataset[name], CONFIG.BUFFER_SIZE):
+            self.global_queue.put(batch)
 
     def remove_dataset(self, name):
         del self.dataset[name]

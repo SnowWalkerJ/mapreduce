@@ -5,6 +5,7 @@ from queue import Empty
 from multiprocess import Queue, Process, Pipe, Value
 from .server import MRServer
 from .common.settings import CONFIG
+from .common.itertools import bufferize
 
 
 Channel = namedtuple('Channel', ['queue', 'pipe', 'state'])
@@ -67,7 +68,6 @@ class MRClient:
     def acquire(self, queue=True):
         self.wait(queue)
         yield
-        self.wait(queue)
     
     def _send(self, item):
         for channel in self.channels:
@@ -83,22 +83,17 @@ class MRClient:
         self.names.add(name)
         if isinstance(data, dict):
             data = data.items()
-        buffer = []
         i = 0
+        n = self.num_cores
         with self.acquire():
             self._send({'action': "add_dataset", 'name': name})
-            for item in data:
-                buffer.append(item)
-                if len(buffer) >= CONFIG.BUFFER_SIZE:
-                    self.channels[i % self.num_cores].queue.put(buffer)
-                    buffer = []
-                    i += 1
-            if buffer:
-                self.channels[i % self.num_cores].queue.put(buffer)
+            for batch in bufferize(data, CONFIG.BUFFER_SIZE):
+                self.channels[i % n].queue.put(batch)
+                i += 1
         return Distributed(self, name)
 
     def partition(self, dataset):
-        with self.acquire(queue=False):
+        with self.acquire():
             self._send({'action': 'partition', 'name': dataset.name})
         with self.acquire(queue=False):
             self._send({'action': "add_dataset", 'name': dataset.name})

@@ -93,9 +93,9 @@ class MRClient:
                 i += 1
         return Distributed(self, name)
 
-    def partition(self, dataset):
+    def partition(self, dataset, by=None):
         with self.acquire():
-            self._send({'action': 'partition', 'name': dataset.name})
+            self._send({'action': 'partition', 'name': dataset.name, 'by': by})
         with self.acquire(queue=False):
             self._send({'action': "add_dataset", 'name': dataset.name})
         return dataset

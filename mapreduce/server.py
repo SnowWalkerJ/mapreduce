@@ -3,6 +3,7 @@ from time import sleep
 from queue import Empty
 from inspect import isgeneratorfunction
 from functools import reduce
+from operator import itemgetter
 from .common.settings import CONFIG
 from .common.itertools import bufferize
 from .common.io import robust_recv
@@ -56,12 +57,13 @@ class MRServer(Process):
     def map(self, src, dest, func):
         self.dataset[dest] = list(map(func, self.dataset[src]))
 
-    def partition(self, name):
+    def partition(self, name, by=None):
+        by = by or itemgetter(0)
         n = len(self.queues)
         dataset = self.dataset.pop(name)
         buffers = [[] for _ in range(n)]
         for item in dataset:
-            key = chash(item[0]) % n
+            key = chash(by(item)) % n
             buffers[key].append(item)
             if len(buffers[key]) >= CONFIG.BUFFER_SIZE:
                 self.queues[key].put(buffers[key])

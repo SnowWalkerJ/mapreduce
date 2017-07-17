@@ -1,3 +1,4 @@
+import atexit
 from time import sleep
 from collections import namedtuple
 from contextlib import contextmanager
@@ -46,6 +47,7 @@ class MRClient:
         self.pool = []
         self.channels = []
         self.__terminated = False
+        atexit.register(self.__del__)
         queues = [Queue() for _ in range(num_cores)]
         for i in range(num_cores):
             pipe_master, pipe_slave = Pipe()

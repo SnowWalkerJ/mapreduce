@@ -67,18 +67,35 @@ class MRClient:
     
     @contextmanager
     def acquire(self, queue=True):
+        """
+        Wait until the processes are idle
+        """
         self.wait(queue)
         yield
     
     def _send(self, item):
+        """Send commands to processes"""
         for channel in self.channels:
             channel.pipe.send(item)
 
     def _recv(self):
+        """
+        Receive info from processes.
+        """
         for channel in self.channels:
             yield channel.pipe.recv()
 
     def distribute(self, name, data):
+        """
+        Distribute the data to processes. 
+        
+        Parameters
+        ----------
+        name: str
+            Store the data by a key `name`.
+        data: Iterable
+            the data to be distributed.
+        """
         if name in self.names:
             raise KeyError("`%s` duplicated" % name)
         self.names.add(name)
@@ -93,7 +110,29 @@ class MRClient:
                 i += 1
         return Distributed(self, name)
 
+    def reduce2(self, dataset, func, inplace=True):
+        """
+        Step 1: Reduce in seperate processes;
+        Step 2: Partition;
+        Step 3: Reduce in seperate processes again.
+        """
+        data = dataset.reduce(func, inplace=inplace) \
+                      .partition() \
+                      .reduce(func,inplace=True)
+        return data
+
     def partition(self, dataset, by=None):
+        """
+        Redistribute objects to different processes according to
+        their key.
+
+        Parameters
+        ----------
+        by: object -> Union[str, num]
+            a function that maps object to a key,
+            this key decides which process to put
+            the data on.
+        """
         with self.acquire():
             self._send({'action': 'partition', 'name': dataset.name, 'by': by})
         with self.acquire(queue=False):
@@ -101,6 +140,9 @@ class MRClient:
         return dataset
 
     def merge(self, data):
+        """
+        Merges multiple datasets to a new one.
+        """
         new_name = "/".join(["merge"] + [d.name for d in data])
         self._send({'action': 'merge',
                     'src': [d.name for d in data],
@@ -108,6 +150,11 @@ class MRClient:
         return Distributed(self, new_name)
 
     def count(self, dataset):
+        """
+        Returns
+        -------
+        The length of the dataset
+        """
         n = 0
         with self.acquire():
             self._send({'action': 'count', 'name': dataset.name})
@@ -116,19 +163,34 @@ class MRClient:
         return n
 
     def remove(self, dataset):
+        """
+        Remove the data from processes.
+        """
         with self.acquire():
             self._send({'action': 'remove_dataset', 'name': dataset.name})
             self.names.remove(dataset.name)
     
     def exists(self, dataset):
+        """
+        Returns
+        -------
+        Whether the data exists on the processes, or
+        it it removed already.
+        """
         return dataset.name in self.names
 
     def terminate(self):
+        """
+        Terminate the processes.
+        """
         with self.acquire():
             self._send({'action': 'terminate'})
         self.__terminated = True
 
     def collect(self, dataset):
+        """
+        Collect the data from processes to the client.
+        """
         with self.acquire():
             self._send({'action': 'collect', 'name': dataset.name})
             data = robust_recv(self.global_queue, batch=True, retries=3)

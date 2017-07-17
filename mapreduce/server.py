@@ -5,6 +5,7 @@ from inspect import isgeneratorfunction
 from functools import reduce
 from .common.settings import CONFIG
 from .common.itertools import bufferize
+from .common.io import robust_recv
 
 
 class MRServer(Process):
@@ -34,17 +35,7 @@ class MRServer(Process):
     def add_dataset(self, name):
         if name not in self.dataset:
             self.dataset[name] = []
-        dataset = self.dataset[name]
-        retry = 0
-        while 1:
-            try:
-                item = self.queue.get(True, timeout=0.01)
-                dataset.extend(item)
-                retry = 0
-            except Empty:
-                retry += 1
-            if retry >= 3:
-                break
+        self.dataset[name].extend(robust_recv(self.queue))
 
     def collect(self, name):
         for batch in bufferize(self.dataset[name], CONFIG.BUFFER_SIZE):

@@ -6,6 +6,7 @@ from multiprocess import Queue, Process, Pipe, Value
 from .server import MRServer
 from .common.settings import CONFIG
 from .common.itertools import bufferize
+from .common.io import robust_recv
 
 
 Channel = namedtuple('Channel', ['queue', 'pipe', 'state'])
@@ -130,17 +131,7 @@ class MRClient:
     def collect(self, dataset):
         with self.acquire():
             self._send({'action': 'collect', 'name': dataset.name})
-            data = []
-            retry = 0
-            while 1:
-                try:
-                    item = self.global_queue.get(True, timeout=0.01)
-                    data.extend(item)
-                    retry = 0
-                except Empty:
-                    retry += 1
-                if retry >= 3:
-                    break
+            data = robust_recv(self.global_queue, batch=True, retries=3)
         return data
 
     def __del__(self):

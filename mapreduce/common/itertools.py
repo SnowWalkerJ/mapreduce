@@ -2,6 +2,9 @@ from inspect import isgenerator
 
 
 def bufferize(iterable, buffer_size):
+    """
+    Split data into multiple batches
+    """
     def _bufferize_iterable(iterable, buffer_size):
         buffer = []
         for item in iterable:

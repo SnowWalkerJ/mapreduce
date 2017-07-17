@@ -112,10 +112,10 @@ class MRClient:
         i = 0
         n = self.num_cores
         with self.acquire():
-            self._send({'action': "add_dataset", 'name': name})
             for batch in bufferize(data, CONFIG.BUFFER_SIZE):
                 self.channels[i % n].queue.put(batch)
                 i += 1
+            self._send({'action': "add_dataset", 'name': name})
         return Distributed(self, name)
 
     def copy(self, dataset):
@@ -125,7 +125,7 @@ class MRClient:
             self._send({'action': 'copy', 'src': dataset.name, 'dest': name})
         return Distributed(self, name)
 
-    def reduce2(self, dataset, func, inplace=True):
+    def reduce2(self, func, dataset, inplace=True):
         """
         Step 1: Reduce in seperate processes;
         Step 2: Partition;
@@ -233,6 +233,9 @@ class Distributed:
 
     def reduce(self, func, inplace=True):
         return self.client.reduce(func, self, inplace=inplace)
+
+    def reduce2(self, func, inplace=True):
+        return self.client.reduce2(func, self, inplace=inplace)
 
     def partition(self, by=None):
         return self.client.partition(self, by=by)

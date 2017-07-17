@@ -25,7 +25,7 @@ class StandardOperation:
                 else:
                     postfix = hex(abs(id(func)))
                     name = "/".join([dataset.name, self.action, postfix])
-                    obj.names.add(name)
+                    name = obj._register_name(name)
                 with obj.acquire():
                     obj._send({'action': self.action, 'src': dataset.name, 'dest': name, 'func': func})
                 return Distributed(obj, name)
@@ -64,6 +64,16 @@ class MRClient:
             return self.global_queue.empty() and all(map(lambda x: x.state.value==0 and x.queue.empty(), self.channels))
         else:
             return all(map(lambda x: x.state.value==0, self.channels))
+
+    def _register_name(self, name):
+        i = 0
+        while 1:
+            name = "{name}{i}".format(name=name, i=i)
+            if name in self.names:
+                i += 1
+            else:
+                self.names.add(name)
+                return name
     
     @contextmanager
     def acquire(self, queue=True):
@@ -96,9 +106,7 @@ class MRClient:
         data: Iterable
             the data to be distributed.
         """
-        if name in self.names:
-            raise KeyError("`%s` duplicated" % name)
-        self.names.add(name)
+        name = self._register_name(name)
         if isinstance(data, dict):
             data = data.items()
         i = 0
@@ -108,6 +116,13 @@ class MRClient:
             for batch in bufferize(data, CONFIG.BUFFER_SIZE):
                 self.channels[i % n].queue.put(batch)
                 i += 1
+        return Distributed(self, name)
+
+    def copy(self, dataset):
+        """A shallow copy of the current dataset"""
+        name = self._register_name(dataset.name)
+        with self.acquire():
+            self._send({'action': 'copy', 'src': dataset.name, 'dest': name})
         return Distributed(self, name)
 
     def reduce2(self, dataset, func, inplace=True):
@@ -144,10 +159,11 @@ class MRClient:
         Merges multiple datasets to a new one.
         """
         new_name = "/".join(["merge"] + [d.name for d in data])
+        name = self._register_name(new_name)
         self._send({'action': 'merge',
                     'src': [d.name for d in data],
-                    'dest': new_name})
-        return Distributed(self, new_name)
+                    'dest': name})
+        return Distributed(self, name)
 
     def count(self, dataset):
         """
@@ -218,7 +234,7 @@ class Distributed:
     def reduce(self, func, inplace=True):
         return self.client.reduce(func, self, inplace=inplace)
 
-    def partition(self), by=None:
+    def partition(self, by=None):
         return self.client.partition(self, by=by)
 
     def exists(self):
@@ -233,3 +249,5 @@ class Distributed:
     def remove(self):
         return self.client.remove(self)
 
+    def copy(self):
+        return self.client.copy(self)

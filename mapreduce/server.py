@@ -72,6 +72,9 @@ class MRServer(Process):
             if buffers[i]:
                 self.queues[i].put(buffers[i])
 
+    def copy(self, src, dest):
+        self.dataset[dest] = self.dataset[src].copy()
+
     def reduce(self, src, dest, func):
         dataset = self.dataset[src]
         keys = set(item[0] for item in dataset)

@@ -156,8 +156,8 @@ class Distributed:
     def reduce(self, func, inplace=True):
         return self.client.reduce(func, self, inplace=inplace)
 
-    def partition(self):
-        return self.client.partition(self)
+    def partition(self), by=None:
+        return self.client.partition(self, by=by)
 
     def exists(self):
         return self.client.exists(self)

@@ -14,7 +14,7 @@ def bufferize(iterable, buffer_size):
                 buffer = []
         if buffer:
             yield buffer
-    
+
     def _bufferize_sequence(iterable, buffer_size):
         for i in range(0, len(iterable), buffer_size):
             batch = iterable[i:i+buffer_size]

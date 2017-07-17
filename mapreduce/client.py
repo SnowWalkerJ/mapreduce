@@ -145,16 +145,16 @@ class Distributed:
         self.client = client
 
     def map(self, func, inplace=True):
-        return self.client.map(func, self)
+        return self.client.map(func, self, inplace=inplace)
 
     def flatmap(self, func, inplace=True):
-        return self.client.flatmap(func, self)
+        return self.client.flatmap(func, self, inplace=inplace)
 
     def filter(self, func, inplace=True):
-        return self.client.filter(func, self)
+        return self.client.filter(func, self, inplace=inplace)
 
     def reduce(self, func, inplace=True):
-        return self.client.reduce(func, self)
+        return self.client.reduce(func, self, inplace=inplace)
 
     def partition(self):
         return self.client.partition(self)

@@ -63,7 +63,7 @@ class MRServer(Process):
         dataset = self.dataset.pop(name)
         buffers = [[] for _ in range(n)]
         for item in dataset:
-            key = chash(by(item)) % n
+            key = Hash.hash(by(item)) % n
             buffers[key].append(item)
             if len(buffers[key]) >= CONFIG.BUFFER_SIZE:
                 self.queues[key].put(buffers[key])
@@ -94,26 +94,28 @@ class MRServer(Process):
         self.dataset[dest] = dataset
 
 
-def hash_string(s):
-    if not s:
-        return 0 # empty
-    value = ord(s[0]) << 7
-    for char in s:
-        value = c_mul(1000003, value) ^ ord(char)
-    value = value ^ len(s)
-    if value == -1:
-        value = -2
-    return value
+class Hash:
+    @staticmethod
+    def hash_string(s):
+        if not s:
+            return 0 # empty
+        value = ord(s[0]) << 7
+        for char in s:
+            value = Hash.c_mul(1000003, value) ^ ord(char)
+        value = value ^ len(s)
+        if value == -1:
+            value = -2
+        return value
 
+    @staticmethod
+    def c_mul(a, b):
+        return int(hex((a * b) & 0xFFFFFFFF)[:-1], 16)
 
-def c_mul(a, b):
-    return int(hex((a * b) & 0xFFFFFFFF)[:-1], 16)
-
-
-def chash(obj):
-    if isinstance(obj, str):
-        return hash_string(obj)
-    else:
-        return obj
+    @staticmethod
+    def hash(obj):
+        if isinstance(obj, str):
+            return Hash.hash_string(obj)
+        else:
+            return obj
 
 

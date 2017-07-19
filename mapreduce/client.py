@@ -205,13 +205,15 @@ class MRClient:
             self._send({'action': 'terminate'})
         self.__terminated = True
 
-    def collect(self, dataset):
+    def collect(self, dataset, remove=False):
         """
         Collect the data from processes to the client.
         """
         with self.acquire():
             self._send({'action': 'collect', 'name': dataset.name})
             data = robust_recv(self.global_queue, batch=True, retries=3)
+        if remove:
+            self.remove(dataset)
         return data
 
     def __del__(self):

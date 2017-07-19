@@ -36,7 +36,8 @@ class MRServer(Process):
     def add_dataset(self, name):
         if name not in self.dataset:
             self.dataset[name] = []
-        self.dataset[name].extend(robust_recv(self.queue))
+        for item in robust_recv(self.global_queue, retries=3):
+            self.dataset[name].extend(item)
 
     def collect(self, name):
         for batch in bufferize(self.dataset[name], CONFIG.BUFFER_SIZE):

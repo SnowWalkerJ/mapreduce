@@ -211,7 +211,9 @@ class MRClient:
         """
         with self.acquire():
             self._send({'action': 'collect', 'name': dataset.name})
-            data = robust_recv(self.global_queue, batch=True, retries=3)
+            data = []
+            for item in robust_recv(self.global_queue, retries=3):
+                data.extend(item)
         if remove:
             self.remove(dataset)
         return data

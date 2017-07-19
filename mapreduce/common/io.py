@@ -1,7 +1,7 @@
 from queue import Empty
 
 
-def robust_recv(queue, batch=True, retries=3):
+def robust_recv(queue, retries=3):
     """
     Try to receive from a queue with retries
 
@@ -9,9 +9,6 @@ def robust_recv(queue, batch=True, retries=3):
     ----------
     queue: Queue
         the queue to receive from
-    batch: bool, optional
-        if True, assuming the received item is a list containing
-        batch of objects
     retries: int
         times of retry
     
@@ -25,10 +22,7 @@ def robust_recv(queue, batch=True, retries=3):
     while 1:
         try:
             item = queue.get(True, timeout=0.01)
-            if batch:
-                data.extend(item)
-            else:
-                data.append(item)
+            yield item
             retry = 0
         except Empty:
             retry += 1
